@@ -1,12 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
 import 'providers/cliente_provider.dart';
-import 'screens/dashboard_screen.dart';
+import 'providers/viaje_provider.dart';
+import 'providers/reserva_provider.dart';
+import 'providers/encomienda_provider.dart';
+import 'providers/bus_provider.dart';
+import 'providers/conductor_provider.dart';
+import 'providers/ruta_provider.dart';
+import 'providers/tipo_encomienda_provider.dart';
+import 'providers/tipo_incidencia_provider.dart';
+import 'providers/incidencia_viaje_provider.dart';
+import 'providers/asignacion_conductor_provider.dart';
+import 'providers/notificacion_provider.dart';
+import 'providers/user_provider.dart';
+import 'providers/role_provider.dart';
+import 'providers/boleto_provider.dart';
+
+import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/dashboard_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ClienteProvider()),
+        ChangeNotifierProvider(create: (_) => ViajeProvider()),
+        ChangeNotifierProvider(create: (_) => ReservaProvider()),
+        ChangeNotifierProvider(create: (_) => EncomiendaProvider()),
+        ChangeNotifierProvider(create: (_) => BusProvider()),
+        ChangeNotifierProvider(create: (_) => ConductorProvider()),
+        ChangeNotifierProvider(create: (_) => RutaProvider()),
+        ChangeNotifierProvider(create: (_) => TipoEncomiendaProvider()),
+        ChangeNotifierProvider(create: (_) => TipoIncidenciaProvider()),
+        ChangeNotifierProvider(create: (_) => IncidenciaViajeProvider()),
+        ChangeNotifierProvider(create: (_) => AsignacionConductorProvider()),
+        ChangeNotifierProvider(create: (_) => NotificacionProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => RoleProvider()),
+        ChangeNotifierProvider(create: (_) => BoletoProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -18,7 +58,7 @@ class MyApp extends StatelessWidget {
       title: 'Sistema Valle',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F172A)),
         useMaterial3: true,
       ),
       home: const AuthGate(),
@@ -34,51 +74,35 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final AuthProvider _authProvider = AuthProvider();
-  final ClienteProvider _clienteProvider = ClienteProvider();
-  late Future<void> _authCheck;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _authCheck = _authProvider.checkAuthStatus();
+    _init();
   }
 
-  @override
-  void dispose() {
-    _authProvider.dispose();
-    _clienteProvider.dispose();
-    super.dispose();
+  Future<void> _init() async {
+    await context.read<AuthProvider>().checkAuthStatus();
+    if (mounted) setState(() => _initialized = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: _authCheck,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (!_initialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-        return AnimatedBuilder(
-          animation: _authProvider,
-          builder: (context, _) {
-            if (_authProvider.isAuthenticated) {
-              return DashboardScreen(
-                authProvider: _authProvider,
-                clienteProvider: _clienteProvider,
-              );
-            }
+    final auth = context.watch<AuthProvider>();
+    
+    if (!auth.isAuthenticated) return const LoginScreen();
 
-            return LoginScreen(
-              authProvider: _authProvider,
-              clienteProvider: _clienteProvider,
-            );
-          },
-        );
-      },
-    );
+    // Verificación crítica: Solo si es Staff va al Dashboard
+    if (auth.isStaff) {
+      return const DashboardScreen();
+    }
+
+    // De lo contrario, cliente normal
+    return const HomeScreen();
   }
 }
