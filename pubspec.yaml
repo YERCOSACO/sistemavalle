@@ -1,24 +1,16 @@
-name: sistemavalle
-description: "A new Flutter project."
+name: sistemavalle_api
+description: API móvil y herramientas de desarrollo de Sistema Valle.
 publish_to: 'none'
-
-version: 1.0.0+1
 
 environment:
   sdk: ^3.7.2
 
 dependencies:
-  flutter:
-    sdk: flutter
-
-  cupertino_icons: ^1.0.8
-  flutter_secure_storage: ^9.2.4
-  http: ^1.2.2
+  bcrypt: ^1.2.0
+  crypto: ^3.0.7
+  mysql_client: ^0.0.27
+  shelf: ^1.4.2
+  shelf_multipart: ^2.0.1
 
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0
-
-flutter:
-  uses-material-design: true
+  test: ^1.25.8

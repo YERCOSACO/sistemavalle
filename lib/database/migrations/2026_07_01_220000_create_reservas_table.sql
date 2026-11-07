@@ -1,0 +1,14 @@
+CREATE TABLE reservas (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  cliente_id BIGINT UNSIGNED NOT NULL,
+  fecha_reserva DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  cantidad INT NOT NULL,
+  total_pagar DECIMAL(8, 2) NOT NULL DEFAULT 0,
+  estado VARCHAR(255) NOT NULL DEFAULT 'pendiente',
+  estado_base TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT reservas_cliente_id_foreign
+    FOREIGN KEY (cliente_id) REFERENCES clientes (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

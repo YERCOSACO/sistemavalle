@@ -1,0 +1,12 @@
+.git
+.idea
+.dart_tool
+.pub
+.pub-cache
+.uploads
+build
+test
+.env
+.env.*
+!.env.example
+*.log

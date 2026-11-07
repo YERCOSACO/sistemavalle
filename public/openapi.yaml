@@ -1,0 +1,664 @@
+openapi: 3.0.3
+info:
+  title: Sistema Valle API
+  version: 1.0.0
+  description: |
+    API móvil de Sistema Valle y gateway HTTP hacia Laravel.
+
+    Las rutas `/api/auth/*` y `/api/mobile/*` descritas aquí las implementa
+    este servicio Dart. Las demás rutas `/api/*` se reenvían a Laravel; sus
+    operaciones y modelos dependen de la instalación Laravel y no se pueden
+    enumerar en esta especificación.
+
+    La API móvil y Laravel comparten MySQL. Laravel administra el esquema.
+servers:
+  - url: http://localhost:8080
+    description: Servidor local
+tags:
+  - name: Salud
+  - name: Autenticación
+  - name: Viajes
+  - name: Asientos
+  - name: Clientes
+  - name: Reservas
+  - name: Comprobantes
+  - name: Boletos
+  - name: Laravel
+paths:
+  /api/health:
+    get:
+      tags: [Salud]
+      summary: Consultar el estado de la API
+      description: Indica si el gateway está activo y si la conexión MySQL está configurada y disponible.
+      responses:
+        '200':
+          description: API disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '503':
+          description: API móvil configurada, pero MySQL no está disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión
+      description: Autentica una cuenta de cliente o de personal y devuelve un token Bearer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: cliente@example.com
+              password: contraseña-segura
+      responses:
+        '200':
+          description: Sesión iniciada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Registrar una cuenta de cliente
+      description: Crea únicamente una cuenta de cliente móvil; no crea cuentas de personal ni asigna permisos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRegistrationRequest'
+      responses:
+        '201':
+          description: Cuenta de cliente creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/auth/me:
+    get:
+      tags: [Autenticación]
+      summary: Consultar el perfil autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil de la cuenta autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cerrar la sesión autenticada
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sesión cerrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/viajes:
+    get:
+      tags: [Viajes]
+      summary: Buscar viajes disponibles
+      description: Devuelve viajes programados y disponibles, hasta 100 resultados.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: origen
+          in: query
+          description: Filtro parcial del origen.
+          schema:
+            type: string
+        - name: destino
+          in: query
+          description: Filtro parcial del destino.
+          schema:
+            type: string
+        - name: fecha
+          in: query
+          description: Fecha del viaje en formato YYYY-MM-DD.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Lista de viajes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/encomiendas:
+    get:
+      tags: [Reservas]
+      summary: Consultar las encomiendas del cliente
+      description: Disponible únicamente para una sesión de cliente.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Encomiendas del cliente autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/asientos-viaje/buses:
+    get:
+      tags: [Asientos]
+      summary: Listar buses y viajes para administrar asientos
+      description: Requiere el permiso `asientoviaje.ver`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Buses con sus viajes programados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/asientos-viaje/viajes/{viajeId}/asientos:
+    parameters:
+      - $ref: '#/components/parameters/ViajeId'
+    get:
+      tags: [Asientos]
+      summary: Consultar asientos para administrarlos
+      description: Requiere el permiso `asientoviaje.ver`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Asientos configurados para el viaje.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+    patch:
+      tags: [Asientos]
+      summary: Cambiar el estado de un asiento
+      description: Requiere los permisos `asientoviaje.ver` y `asientoviaje.editar`. No permite modificar asientos con boletos vigentes.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeatUpdateRequest'
+      responses:
+        '200':
+          description: Estado del asiento actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+    delete:
+      tags: [Asientos]
+      summary: Eliminar un asiento del viaje
+      description: Requiere los permisos `asientoviaje.ver` y `asientoviaje.eliminar`. No permite eliminar asientos con boletos vigentes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: numero_asiento
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 12
+      responses:
+        '200':
+          description: Asiento eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/viajes/{viajeId}/asientos:
+    parameters:
+      - $ref: '#/components/parameters/ViajeId'
+    get:
+      tags: [Asientos]
+      summary: Consultar los asientos de un viaje
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Asientos y disponibilidad del viaje.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/clientes:
+    get:
+      tags: [Clientes]
+      summary: Buscar clientes para una reserva
+      description: Requiere los permisos `clientes.ver` y `reservas.crear`. Devuelve como máximo 50 clientes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Busca en nombre, apellido, cédula y correo electrónico.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Clientes encontrados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/reservas:
+    get:
+      tags: [Reservas]
+      summary: Listar reservas de la cuenta
+      description: El personal requiere `reservas.ver`; los clientes consultan sus propias reservas.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Reservas disponibles para la cuenta autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+    post:
+      tags: [Reservas]
+      summary: Crear una reserva
+      description: El cliente autenticado reserva para sí mismo; el personal requiere el permiso `reservas.crear` y debe indicar `cliente_id`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+      responses:
+        '201':
+          description: Reserva creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/reservas/venta:
+    post:
+      tags: [Reservas]
+      summary: Registrar una venta desde el personal
+      description: Requiere una cuenta de personal y el permiso `reservas.crear`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+      responses:
+        '201':
+          description: Venta registrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/reservas/{reservaId}/comprobante:
+    post:
+      tags: [Comprobantes]
+      summary: Enviar el comprobante de una reserva
+      description: Solo el cliente titular puede enviar un archivo JPG, JPEG, PNG o PDF de hasta 5 MB.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reservaId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [comprobante]
+              properties:
+                comprobante:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen JPG/JPEG, PNG o documento PDF (máximo 5 MB).
+      responses:
+        '200':
+          description: Comprobante recibido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/comprobantes/{filename}:
+    get:
+      tags: [Comprobantes]
+      summary: Descargar un comprobante
+      description: El nombre es el identificador aleatorio almacenado por la API; solo se sirven comprobantes existentes con extensión permitida.
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{64}\.(jpg|jpeg|png|pdf)$'
+      responses:
+        '200':
+          description: Contenido del comprobante.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+            X-Content-Type-Options:
+              schema:
+                type: string
+                example: nosniff
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/boletos/{boletoId}/confirmar-pago:
+    patch:
+      tags: [Boletos]
+      summary: Confirmar el pago de un boleto
+      description: Requiere una cuenta de personal con el permiso `boletos.editar`. Para verificar manualmente un pago QR, se deben enviar ambos campos opcionales indicados.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: boletoId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentConfirmationRequest'
+      responses:
+        '200':
+          description: Pago confirmado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/mobile/boletos/{boletoId}:
+    patch:
+      tags: [Boletos]
+      summary: Actualizar los datos del pasajero de un boleto
+      description: Requiere una cuenta de personal con el permiso `boletos.editar`. Solo se editan boletos pendientes o confirmados que no sean especiales.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: boletoId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketPassengerUpdateRequest'
+      responses:
+        '200':
+          description: Datos del pasajero actualizados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/encomiendas:
+    post:
+      tags: [Laravel]
+      summary: Crear una encomienda
+      description: El gateway exige una cuenta de personal con el permiso `encomiendas.crear` y reenvía la solicitud a Laravel, que define la validación y la respuesta completas.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: Campos aceptados por la ruta de encomiendas configurada en Laravel.
+      responses:
+        '200':
+          description: Respuesta de Laravel reenviada por el gateway.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '201':
+          description: Encomienda creada; respuesta reenviada por Laravel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        default:
+          $ref: '#/components/responses/ApiError'
+components:
+  parameters:
+    ViajeId:
+      name: viajeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    ApiError:
+      description: |
+        Error de autenticación o permisos (401/403), recurso no encontrado
+        (404), conflicto de estado (409), solicitud no válida (400/422),
+        archivo demasiado grande (413), servicio no disponible (503) o error
+        interno (500).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+    ClientRegistrationRequest:
+      type: object
+      required: [nombre, apellido, cedula, email, password, password_confirmation]
+      properties:
+        nombre:
+          type: string
+          maxLength: 255
+        apellido:
+          type: string
+          maxLength: 255
+        cedula:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Hasta 72 bytes UTF-8.
+        password_confirmation:
+          type: string
+          format: password
+        telefono:
+          type: string
+          maxLength: 20
+    SeatUpdateRequest:
+      type: object
+      required: [numero_asiento, estado]
+      properties:
+        numero_asiento:
+          type: string
+          maxLength: 12
+        estado:
+          type: string
+          enum: [disponible, bloqueado]
+    BookingRequest:
+      type: object
+      required: [viaje_id, boletos]
+      properties:
+        viaje_id:
+          type: integer
+          minimum: 1
+        cliente_id:
+          type: integer
+          minimum: 1
+          description: Requerido para las solicitudes de personal; los clientes usan su propia cuenta.
+        metodo_pago:
+          type: string
+          enum: [QR, efectivo, tarjeta]
+          default: QR
+        boletos:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/PassengerRequest'
+    PassengerRequest:
+      type: object
+      required: [numero_asiento]
+      properties:
+        numero_asiento:
+          type: string
+          maxLength: 12
+        tipo_pasajero:
+          type: string
+          enum: [normal, comodidad, mascota]
+          default: normal
+        nombre_pasajero:
+          type: string
+          maxLength: 255
+        ci_pasajero:
+          type: string
+          maxLength: 50
+        telefono_pasajero:
+          type: string
+          maxLength: 50
+    PaymentConfirmationRequest:
+      type: object
+      properties:
+        verificacion_manual:
+          type: boolean
+          description: Debe ser true para indicar verificación manual.
+        canal_verificacion:
+          type: string
+          enum: [whatsapp]
+          description: Enviar whatsapp junto con verificacion_manual=true para registrar la verificación manual.
+    TicketPassengerUpdateRequest:
+      type: object
+      required: [nombre_pasajero, ci_pasajero, telefono_pasajero]
+      properties:
+        nombre_pasajero:
+          type: string
+          maxLength: 255
+        ci_pasajero:
+          type: string
+          maxLength: 50
+        telefono_pasajero:
+          type: string
+          maxLength: 50
+    SuccessEnvelope:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        message:
+          type: string
+        data:
+          description: Datos de la operación; la forma exacta depende del endpoint.
+          nullable: true
+    ErrorEnvelope:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token

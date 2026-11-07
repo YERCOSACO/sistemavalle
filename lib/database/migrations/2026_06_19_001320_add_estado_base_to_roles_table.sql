@@ -1,0 +1,2 @@
+ALTER TABLE roles
+  ADD COLUMN estado_base TINYINT(1) NOT NULL DEFAULT 1 AFTER guard_name;
